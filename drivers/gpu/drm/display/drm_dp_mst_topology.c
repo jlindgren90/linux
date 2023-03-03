@@ -4208,7 +4208,8 @@ int drm_dp_atomic_find_time_slots(struct drm_atomic_state *state,
 		return PTR_ERR(topology_state);
 
 	conn_state = drm_atomic_get_new_connector_state(state, port->connector);
-	topology_state->pending_crtc_mask |= drm_crtc_mask(conn_state->crtc);
+	if (conn_state)
+		topology_state->pending_crtc_mask |= drm_crtc_mask(conn_state->crtc);
 
 	/* Find the current allocation for this port, if any */
 	payload = drm_atomic_get_mst_payload_state(topology_state, port);
@@ -4293,12 +4294,12 @@ int drm_dp_atomic_release_time_slots(struct drm_atomic_state *state,
 	bool update_payload = true;
 
 	old_conn_state = drm_atomic_get_old_connector_state(state, port->connector);
-	if (!old_conn_state->crtc)
+	if (old_conn_state && !old_conn_state->crtc)
 		return 0;
 
 	/* If the CRTC isn't disabled by this state, don't release it's payload */
 	new_conn_state = drm_atomic_get_new_connector_state(state, port->connector);
-	if (new_conn_state->crtc) {
+	if (new_conn_state && new_conn_state->crtc) {
 		struct drm_crtc_state *crtc_state =
 			drm_atomic_get_new_crtc_state(state, new_conn_state->crtc);
 
@@ -4314,7 +4315,8 @@ int drm_dp_atomic_release_time_slots(struct drm_atomic_state *state,
 	if (IS_ERR(topology_state))
 		return PTR_ERR(topology_state);
 
-	topology_state->pending_crtc_mask |= drm_crtc_mask(old_conn_state->crtc);
+	if (old_conn_state)
+		topology_state->pending_crtc_mask |= drm_crtc_mask(old_conn_state->crtc);
 	if (!update_payload)
 		return 0;
 
@@ -4325,7 +4327,7 @@ int drm_dp_atomic_release_time_slots(struct drm_atomic_state *state,
 		return -EINVAL;
 	}
 
-	if (new_conn_state->crtc)
+	if (new_conn_state && new_conn_state->crtc)
 		return 0;
 
 	drm_dbg_atomic(mgr->dev, "[MST PORT:%p] TU %d -> 0\n", port, payload->time_slots);
