@@ -3353,6 +3353,7 @@ void drm_dp_remove_payload(struct drm_dp_mst_topology_mgr *mgr,
 			   struct drm_dp_mst_atomic_payload *payload)
 {
 	struct drm_dp_mst_atomic_payload *pos;
+	int old_time_slots = INT_MAX;
 	bool send_remove = false;
 
 	/* We failed to make the payload, so nothing to do */
@@ -3369,14 +3370,33 @@ void drm_dp_remove_payload(struct drm_dp_mst_topology_mgr *mgr,
 		drm_dbg_kms(mgr->dev, "Payload for VCPI %d not in topology, not sending remove\n",
 			    payload->vcpi);
 
+	/*
+	 * We need to infer the time_slots value that was last committed
+	 * (and therefore used to compute vc_start_slots). The current
+	 * value of payload->time_slots may be different.
+	 */
 	list_for_each_entry(pos, &mst_state->payloads, next) {
-		if (pos != payload && pos->vc_start_slot > payload->vc_start_slot)
-			pos->vc_start_slot -= payload->time_slots;
+		if (pos->vc_start_slot > payload->vc_start_slot) {
+			old_time_slots = min(old_time_slots,
+				pos->vc_start_slot - payload->vc_start_slot);
+		}
+	}
+	if (old_time_slots != INT_MAX) {
+		list_for_each_entry(pos, &mst_state->payloads, next) {
+			if (pos->vc_start_slot > payload->vc_start_slot)
+				pos->vc_start_slot -= old_time_slots;
+		}
+		mgr->next_start_slot -= old_time_slots;
+	} else {
+		/*
+		 * We can just use the vc_start_slot of the destroyed
+		 * payload if there were no others following it.
+		 */
+		mgr->next_start_slot = payload->vc_start_slot;
 	}
 	payload->vc_start_slot = -1;
 
 	mgr->payload_count--;
-	mgr->next_start_slot -= payload->time_slots;
 
 	if (payload->delete)
 		drm_dp_mst_put_port_malloc(payload->port);
