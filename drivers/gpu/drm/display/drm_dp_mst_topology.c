@@ -3342,8 +3342,7 @@ EXPORT_SYMBOL(drm_dp_add_payload_part1);
  * drm_dp_remove_payload() - Remove an MST payload
  * @mgr: Manager to use.
  * @mst_state: The MST atomic state
- * @old_payload: The payload with its old state
- * @new_payload: The payload to write
+ * @payload: The payload to write
  *
  * Removes a payload from an MST topology if it was successfully assigned a start slot. Also updates
  * the starting time slots of all other payloads which would have been shifted towards the start of
@@ -3351,37 +3350,36 @@ EXPORT_SYMBOL(drm_dp_add_payload_part1);
  */
 void drm_dp_remove_payload(struct drm_dp_mst_topology_mgr *mgr,
 			   struct drm_dp_mst_topology_state *mst_state,
-			   const struct drm_dp_mst_atomic_payload *old_payload,
-			   struct drm_dp_mst_atomic_payload *new_payload)
+			   struct drm_dp_mst_atomic_payload *payload)
 {
 	struct drm_dp_mst_atomic_payload *pos;
 	bool send_remove = false;
 
 	/* We failed to make the payload, so nothing to do */
-	if (new_payload->vc_start_slot == -1)
+	if (payload->vc_start_slot == -1)
 		return;
 
 	mutex_lock(&mgr->lock);
-	send_remove = drm_dp_mst_port_downstream_of_branch(new_payload->port, mgr->mst_primary);
+	send_remove = drm_dp_mst_port_downstream_of_branch(payload->port, mgr->mst_primary);
 	mutex_unlock(&mgr->lock);
 
 	if (send_remove)
-		drm_dp_destroy_payload_step1(mgr, mst_state, new_payload);
+		drm_dp_destroy_payload_step1(mgr, mst_state, payload);
 	else
 		drm_dbg_kms(mgr->dev, "Payload for VCPI %d not in topology, not sending remove\n",
-			    new_payload->vcpi);
+			    payload->vcpi);
 
 	list_for_each_entry(pos, &mst_state->payloads, next) {
-		if (pos != new_payload && pos->vc_start_slot > new_payload->vc_start_slot)
-			pos->vc_start_slot -= old_payload->time_slots;
+		if (pos != payload && pos->vc_start_slot > payload->vc_start_slot)
+			pos->vc_start_slot -= payload->time_slots;
 	}
-	new_payload->vc_start_slot = -1;
+	payload->vc_start_slot = -1;
 
 	mgr->payload_count--;
-	mgr->next_start_slot -= old_payload->time_slots;
+	mgr->next_start_slot -= payload->time_slots;
 
-	if (new_payload->delete)
-		drm_dp_mst_put_port_malloc(new_payload->port);
+	if (payload->delete)
+		drm_dp_mst_put_port_malloc(payload->port);
 }
 EXPORT_SYMBOL(drm_dp_remove_payload);
 
