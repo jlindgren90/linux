@@ -1327,6 +1327,9 @@ int compute_mst_dsc_configs_for_state(struct drm_atomic_state *state,
 		if (!aconnector || !aconnector->dc_sink || !aconnector->mst_output_port)
 			continue;
 
+		if (!dc_resource_is_dsc_encoding_supported(stream->ctx->dc))
+			continue;
+
 		if (!aconnector->dc_sink->dsc_caps.dsc_dec_caps.is_dsc_supported)
 			continue;
 
